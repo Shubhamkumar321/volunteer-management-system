@@ -1,84 +1,36 @@
-import { useNavigate }
-from "react-router-dom";
-
+import { Link } from "react-router-dom";
+import { FaArrowRight, FaHandsHelping, FaMapMarkerAlt } from "react-icons/fa";
 
 const HeroSection = () => {
-
-const navigate =
-  useNavigate();
-
-
   return (
-
-    <section
-      className="
-      text-center
-      py-5
-      "
-      style={{
-        minHeight: "80vh",
-        display: "flex",
-        alignItems: "center"
-      }}
-    >
-
-      <div className="container">
-
-        <h1
-          className="
-          display-2
-          fw-bold
-          "
-          style={{
-            color: "#2563eb"
-          }}
-        >
-
-          VolunteerConnect
-
-        </h1>
-
-        <p
-          className="
-          lead
-          mt-4
-          "
-        >
-
-          Discover meaningful volunteer
-          opportunities and create
-          positive impact in society.
-
-        </p>
-
-        <div
-          className="
-          mt-5
-          "
-        >
-
-       <button
-
-        className="
-        primary-btn
-        "
-
-        onClick={() =>
-
-          navigate("/events")
-
-        }
-
-      >
-
-        Explore Events
-
-      </button>
-
+    <section className="home-hero">
+      <div className="container home-hero-inner">
+        <div className="home-hero-copy">
+          <p className="hero-eyebrow">
+            <FaHandsHelping aria-hidden="true" />
+            Find your way to make a difference
+          </p>
+          <h1 className="hero-title">
+            <span className="hero-title-first">Volunteer</span><span>Connect</span>
+          </h1>
+          <p className="hero-description">
+            Find local opportunities, meet people who care, and turn your time into lasting impact.
+          </p>
+          <div className="hero-actions">
+            <Link to="/events" className="hero-primary-action">
+              Explore opportunities
+              <FaArrowRight aria-hidden="true" />
+            </Link>
+            <Link to="/register" className="hero-secondary-action">
+              Join the community
+            </Link>
+          </div>
+          <p className="hero-location-note">
+            <FaMapMarkerAlt aria-hidden="true" />
+            Good things happen close to home
+          </p>
         </div>
-
       </div>
-
     </section>
   );
 };

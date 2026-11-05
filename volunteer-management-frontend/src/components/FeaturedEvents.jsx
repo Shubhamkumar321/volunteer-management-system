@@ -1,116 +1,61 @@
-const FeaturedEvents = () => {
+import { Link } from "react-router-dom";
+import { FaArrowRight, FaMapMarkerAlt } from "react-icons/fa";
 
+const FeaturedEvents = () => {
   const events = [
-  {
-    title: "Tree Plantation Drive",
-    city: "Pune",
-    image:
-      "https://picsum.photos/600/400?random=1"
-  },
-  {
-    title: "Blood Donation Camp",
-    city: "Mumbai",
-    image:
-      "https://picsum.photos/600/400?random=2"
-  },
-  {
-    title: "Food Distribution",
-    city: "Delhi",
-    image:
-      "https://picsum.photos/600/400?random=3"
-  }
-];
+    {
+      title: "Tree Plantation Drive",
+      city: "Pune",
+      image: "/event-environment.jpg"
+    },
+    {
+      title: "Blood Donation Camp",
+      city: "Mumbai",
+      image: "/event-donation.jpg"
+    },
+    {
+      title: "Food Distribution",
+      city: "Delhi",
+      image: "/event-food.jpg"
+    }
+  ];
 
   return (
-
-    <section className="py-5">
-
+    <section className="featured-events-section">
       <div className="container">
-
-        <h2
-          className="
-          text-center
-          fw-bold
-          mb-5
-          "
-        >
-          Featured Events
-        </h2>
-
-        <div className="row">
-
-          {
-            events.map(
-              (event, index) => (
-
-                <div
-                  key={index}
-                  className="
-                  col-md-4
-                  mb-4
-                  "
-                >
-
-                  <div
-                    className="
-                    card
-                    border-0
-                    shadow-sm
-                    h-100
-                    "
-                    style={{
-                      borderRadius: "20px",
-                      overflow: "hidden"
-                    }}
-                  >
-
-                    {event.image}
-
-                    <div className="card-body">
-
-                      <h5
-                        className="
-                        fw-bold
-                        "
-                      >
-                        {event.title}
-                      </h5>
-
-                      <p
-                        className="
-                        text-muted
-                        "
-                      >
-                        📍 {event.city}
-                      </p>
-
-                      <button
-                        className="
-                        btn
-                        btn-primary
-                        rounded-pill
-                        px-4
-                        "
-                      >
-                        View Details
-                      </button>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              )
-            )
-          }
-
+        <div className="section-heading-row">
+          <div>
+            <p className="section-eyebrow">Get involved</p>
+            <h2 className="home-section-title">Opportunities to show up</h2>
+          </div>
+          <Link to="/events" className="all-events-link">
+            View all events <FaArrowRight aria-hidden="true" />
+          </Link>
         </div>
-
+        <div className="event-grid">
+          {events.map((event) => (
+            <article className="event-card" key={event.title}>
+              <img
+                className="event-image"
+                src={event.image}
+                alt={event.title}
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="event-card-body">
+                <h3>{event.title}</h3>
+                <p className="event-location">
+                  <FaMapMarkerAlt aria-hidden="true" /> {event.city}
+                </p>
+                <Link to="/events" className="event-card-link">
+                  View opportunity <FaArrowRight aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
-
     </section>
-
   );
 };
 

@@ -1,280 +1,115 @@
 import {
   Link,
+  NavLink,
   useNavigate
 } from "react-router-dom";
 
 import {
-  FaHandsHelping
+  FaHandsHelping,
+  FaBars
 } from "react-icons/fa";
+
+import { useState } from "react";
 
 import {
   useAuth
 } from "../context/AuthContext";
 
 const Navbar = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const navigate =
-    useNavigate();
+  const closeMenu = () => setMenuOpen(false);
 
-  const {
-    user,
-    logout
-  } = useAuth();
-
-  const handleLogout =
-  () => {
-
+  const handleLogout = () => {
     logout();
-
+    closeMenu();
     navigate("/login");
   };
 
   return (
-
-    <nav
-      className="
-      navbar
-      navbar-expand-lg
-      bg-white
-      shadow-sm
-      sticky-top
-      py-3
-      "
-    >
-
+    <nav className="navbar navbar-expand-xxl navbar-custom sticky-top">
       <div className="container">
-
-        <Link
-          to="/"
-          className="
-          navbar-brand
-          fw-bold
-          text-primary
-          fs-2
-          d-flex
-          align-items-center
-          "
-        >
-
-          <FaHandsHelping
-            className="me-2"
-          />
-
-          VolunteerConnect
-
+        <Link to="/" className="navbar-brand brand-lockup" onClick={closeMenu}>
+          <span className="brand-mark" aria-hidden="true">
+            <FaHandsHelping />
+          </span>
+          <span>Volunteer<span className="brand-accent">Connect</span></span>
         </Link>
 
-        {
+        <button
+          className="navbar-toggler navbar-menu-toggle"
+          type="button"
+          aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((isOpen) => !isOpen)}
+        >
+          <FaBars aria-hidden="true" />
+        </button>
 
-          user ?
-
-          (
-
-            <div
-              className="
-              d-flex
-              gap-3
-              align-items-center
-              "
+        <div id="primary-navigation" className={`collapse navbar-collapse${menuOpen ? " show" : ""}`}>
+          <div className="navbar-nav main-nav-links">
+            <NavLink
+              to="/events"
+              className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+              onClick={closeMenu}
             >
-
-              <Link
+              Explore events
+            </NavLink>
+            {user && (
+              <NavLink
                 to="/dashboard"
-                className="
-                btn
-                btn-outline-primary
-                rounded-pill
-                px-4
-                "
+                className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+                onClick={closeMenu}
               >
-
                 Dashboard
-
-              </Link>
-
-
-              <Link
-
-  to="/my-events"
-
-  className="
-  btn
-  btn-outline-secondary
-  rounded-pill
-  px-4
-  "
-
->
-
-  My Events
-
-</Link>
-
-<Link
-
-  to="/my-registrations"
-
-  className="
-  btn
-  btn-outline-dark
-  rounded-pill
-  px-4
-  "
-
->
-
-  My Registrations
-
-</Link>
-
-
-
-              <Link
-
-  to="/create-event"
-
-  className="
-  btn
-  btn-outline-warning
-  rounded-pill
-  px-4
-  "
-
->
-
-  Create Event
-
-</Link>
-
-{
-  user?.role === "ADMIN" && (
-
-    <Link
-      to="/admin-dashboard"
-      className="
-      btn
-      btn-dark
-      rounded-pill
-      "
-    >
-
-      Admin
-
-    </Link>
-
-  )
-}
-
-
-
-              <Link
-
-  to="/profile"
-
-  className="
-  btn
-  btn-outline-success
-  rounded-pill
-  px-4
-  "
-
->
-
-  Profile
-
-</Link>
-
-
-
-              <span
-                className="
-                fw-bold
-                "
-              >
-
-                {user.name}
-
-              </span>
-
-              <button
-
-                onClick={
-                  handleLogout
-                }
-
-                className="
-                btn
-                btn-danger
-                rounded-pill
-                px-4
-                "
-
-              >
-
-                
-
-                Logout
-
-              </button>
-
-            </div>
-
-          )
-
-          :
-
-          (
-
-            <div
-              className="
-              d-flex
-              gap-3
-              "
-            >
-
-              <Link
-                to="/login"
-                className="
-                btn
-                btn-outline-primary
-                rounded-pill
-                px-4
-                "
-              >
-
-                Login
-
-              </Link>
-
-
-
-
-              <Link
-                to="/register"
-                className="
-                btn
-                btn-primary
-                rounded-pill
-                px-4
-                "
-              >
-
-                Register
-
-              </Link>
-
-            </div>
-
-          )
-
-        }
-
+              </NavLink>
+            )}
+          </div>
+
+          <div className="navbar-actions">
+            {user ? (
+              <>
+                <div className="account-links">
+                  <NavLink to="/my-events" className="nav-link" onClick={closeMenu}>
+                    My events
+                  </NavLink>
+                  <NavLink to="/my-registrations" className="nav-link" onClick={closeMenu}>
+                    Registrations
+                  </NavLink>
+                  {user.role === "ADMIN" && (
+                    <NavLink to="/admin-dashboard" className="nav-link" onClick={closeMenu}>
+                      Admin
+                    </NavLink>
+                  )}
+                </div>
+                <Link to="/create-event" className="btn btn-create-event" onClick={closeMenu}>
+                  Create an event
+                </Link>
+                <Link to="/profile" className="profile-link" onClick={closeMenu} title="Open profile">
+                  {user.name}
+                </Link>
+                <button type="button" onClick={handleLogout} className="btn btn-logout">
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="nav-link login-link" onClick={closeMenu}>
+                  Log in
+                </Link>
+                <Link to="/register" className="btn btn-join" onClick={closeMenu}>
+                  Join the community
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
       </div>
-
     </nav>
-
   );
-
 };
 
 export default Navbar;
