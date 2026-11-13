@@ -1,9 +1,12 @@
 package com.volunteer.controller;
 
 import com.volunteer.dto.DashboardStatisticsResponse;
+import com.volunteer.dto.AdminReportsResponse;
 import com.volunteer.dto.EventResponse;
+import com.volunteer.dto.RejectEventRequest;
 import com.volunteer.service.AdminService;
 import com.volunteer.service.EventService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +26,11 @@ public class AdminController {
 
         return adminService.getDashboard();
     }
+
+        @GetMapping("/reports")
+        public AdminReportsResponse reports() {
+                return adminService.getReports();
+        }
 
     @GetMapping("/events/pending")
     public ResponseEntity<
@@ -51,12 +59,13 @@ public class AdminController {
 
     @PutMapping("/events/{id}/reject")
     public ResponseEntity<EventResponse>
-    rejectEvent(@PathVariable Long id
+    rejectEvent(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectEventRequest request
     ) {
 
         return ResponseEntity.ok(
-                eventService.rejectEvent(id)
-
+                eventService.rejectEvent(id, request.getReason())
         );
     }
 

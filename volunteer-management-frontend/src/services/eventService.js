@@ -20,7 +20,8 @@ export const getMyEvents = () => {
 export const searchEvents = (city) => {
 
   return api.get(
-    `/api/public/events/search?city=${city}`
+    "/api/public/events/search",
+    { params: { city } }
   );
 
 };

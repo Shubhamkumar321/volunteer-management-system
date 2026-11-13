@@ -10,7 +10,8 @@ import {
   FaClipboardList,
   FaMapMarkerAlt,
   FaTags,
-  FaTrophy
+  FaTrophy,
+  FaDownload
 }
 from "react-icons/fa"; 
 
@@ -20,6 +21,7 @@ import {
   getApprovedEvents,
   getRejectedEvents,
   getDashboardAnalytics,
+  getAdminReports,
   getPendingEvents,
   approveEvent,
   rejectEvent
@@ -35,12 +37,8 @@ const AdminDashboard = () => {
 
   const [selectedType, setSelectedType] =
     useState("PENDING");
-
-  useEffect(() => {
-
-    loadDashboard();
-
-  }, []);
+  const [reportData, setReportData] = useState(null);
+  const [reportAction, setReportAction] = useState("");
 
   const loadDashboard = async () => {
 
@@ -60,6 +58,8 @@ const AdminDashboard = () => {
         pendingResponse.data
       );
 
+      setReportData(null);
+
     } catch (error) {
 
       console.log(error);
@@ -67,6 +67,18 @@ const AdminDashboard = () => {
     }
 
   };
+
+  useEffect(() => {
+    Promise.all([
+      getDashboardAnalytics(),
+      getPendingEvents()
+    ]).then(([analyticsResponse, pendingResponse]) => {
+      setAnalytics(analyticsResponse.data);
+      setPendingEvents(pendingResponse.data);
+    }).catch((error) => {
+      console.log(error);
+    });
+  }, []);
 
   const loadPending = async () => {
 
@@ -113,6 +125,87 @@ const AdminDashboard = () => {
 
   };
 
+  const loadReports = async () => {
+    if (reportData) {
+      return reportData;
+    }
+
+    const response = await getAdminReports();
+    setReportData(response.data);
+    return response.data;
+  };
+
+  const showReport = async (reportType) => {
+    setReportAction("loading");
+
+    try {
+      await loadReports();
+      setSelectedType(reportType);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Unable to load report",
+        text: error.response?.data?.message || "Please try again."
+      });
+    } finally {
+      setReportAction("");
+    }
+  };
+
+  const exportAllReports = async () => {
+    setReportAction("exporting");
+
+    try {
+      const reports = await loadReports();
+      const rows = [
+        ["Report type", "ID", "Name", "Email", "Mobile", "City", "Event", "Category", "Event date", "Registration date", "Status", "Role", "Active", "Rejection reason"],
+        ...reports.users.map((user) => [
+          "User", user.id, user.name, user.email, user.mobile, user.city,
+          "", "", "", user.createdAt, "", user.role,
+          user.active ? "Yes" : "No", ""
+        ]),
+        ...reports.events.map((event) => [
+          "Event", event.id, event.organizer, "", "", event.city,
+          event.title, event.category, event.eventDate, "", event.status,
+          "", "", event.rejectionReason
+        ]),
+        ...reports.registrations.map((registration) => [
+          "Registration", registration.registrationId,
+          registration.volunteerName, registration.volunteerEmail, "",
+          registration.city, registration.eventTitle, "",
+          registration.eventDate, registration.registrationDate,
+          registration.registrationStatus, "", "", ""
+        ])
+      ];
+      const csv = rows.map((row) => row.map((value) => {
+        let text = value == null ? "" : String(value);
+        if (/^[\t\r ]*[=+\-@]/.test(text)) {
+          text = `'${text}`;
+        }
+        return `"${text.replaceAll('"', '""')}"`;
+      }).join(",")).join("\r\n");
+      const blob = new Blob([`\uFEFF${csv}`], {
+        type: "text/csv;charset=utf-8"
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `volunteerconnect-reports-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Unable to export reports",
+        text: error.response?.data?.message || "Please try again."
+      });
+    } finally {
+      setReportAction("");
+    }
+  };
+
   const handleApprove =
     async (eventId) => {
 
@@ -140,10 +233,33 @@ const AdminDashboard = () => {
   const handleReject =
     async (eventId) => {
 
+      const { value: reason, isConfirmed } = await Swal.fire({
+        title: "Reject event",
+        text: "The organizer will receive this reason by email.",
+        input: "textarea",
+        inputPlaceholder: "Reason for rejection",
+        inputAttributes: {
+          "aria-label": "Reason for rejection"
+        },
+        inputValidator: (value) => {
+          if (!value?.trim()) {
+            return "A rejection reason is required.";
+          }
+        },
+        showCancelButton: true,
+        confirmButtonText: "Reject event",
+        confirmButtonColor: "#dc3545"
+      });
+
+      if (!isConfirmed) {
+        return;
+      }
+
       try {
 
         await rejectEvent(
-          eventId
+          eventId,
+          { reason: reason.trim() }
         );
 
         Swal.fire({
@@ -161,6 +277,10 @@ const AdminDashboard = () => {
 
     };
 
+  const eventsToDisplay = selectedType === "ALL_EVENTS"
+    ? reportData?.events || []
+    : pendingEvents;
+
   return (
 
     <>
@@ -168,23 +288,31 @@ const AdminDashboard = () => {
 
       <div className="container py-5">
 
-        <h2 className="mb-4">
-          Admin Dashboard
-        </h2>
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+          <h2 className="mb-0">Admin Dashboard</h2>
+          <button
+            type="button"
+            className="btn btn-outline-success d-inline-flex align-items-center gap-2"
+            onClick={exportAllReports}
+            disabled={Boolean(reportAction)}
+          >
+            <FaDownload aria-hidden="true" />
+            {reportAction === "exporting" ? "Preparing CSV..." : "Export all reports (CSV)"}
+          </button>
+        </div>
 
         {analytics && (
 
-          <div className="row">
+          <div className="row admin-dashboard-stat-grid">
 
             <div className="col-md-4 mb-3">
 
-              <div
-                className="
-                card
-                shadow-sm
-                border-0
-                p-3
-                "
+              <button
+                type="button"
+                className="card shadow-sm border-0 p-3 text-start w-100"
+                onClick={() => showReport("USERS")}
+                disabled={Boolean(reportAction)}
+                aria-label={`View all ${analytics.totalUsers} users`}
               >
 
                 <div className="d-flex justify-content-between align-items-center">
@@ -208,19 +336,18 @@ const AdminDashboard = () => {
 
                 </div>
 
-              </div>
+              </button>
 
             </div>
 
             <div className="col-md-4 mb-3">
 
-              <div
-                className="
-                card
-                shadow-sm
-                border-0
-                p-3
-                "
+              <button
+                type="button"
+                className="card shadow-sm border-0 p-3 text-start w-100"
+                onClick={() => showReport("ALL_EVENTS")}
+                disabled={Boolean(reportAction)}
+                aria-label={`View all ${analytics.totalEvents} events`}
               >
 
                 <div className="d-flex justify-content-between align-items-center">
@@ -244,19 +371,18 @@ const AdminDashboard = () => {
 
                 </div>
 
-              </div>
+              </button>
 
             </div>
 
             <div className="col-md-4 mb-3">
 
-              <div
-                className="
-                card
-                shadow-sm
-                border-0
-                p-3
-                "
+              <button
+                type="button"
+                className="card shadow-sm border-0 p-3 text-start w-100"
+                onClick={() => showReport("REGISTRATIONS")}
+                disabled={Boolean(reportAction)}
+                aria-label={`View all ${analytics.totalRegistrations} registrations`}
               >
 
                 <div className="d-flex justify-content-between align-items-center">
@@ -264,7 +390,7 @@ const AdminDashboard = () => {
                   <div>
 
                     <h6>
-                      Registrations
+                      Volunteer Registrations
                     </h6>
 
                     <h3>
@@ -280,7 +406,7 @@ const AdminDashboard = () => {
 
                 </div>
 
-              </div>
+              </button>
 
             </div>
 
@@ -410,7 +536,7 @@ const AdminDashboard = () => {
 
         {analytics && (
 
-  <div className="row mb-4">
+  <div className="row mb-4 admin-dashboard-insight-grid">
 
     <div className="col-md-4 mb-3">
 
@@ -556,13 +682,84 @@ const AdminDashboard = () => {
   </div>
 
 )}
+        {selectedType === "USERS" && reportData && (
+          <div className="card shadow-sm border-0 p-4">
+            <h4 className="mb-3">Users</h4>
+            <div className="table-responsive">
+              <table className="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Mobile</th>
+                    <th>City</th>
+                    <th>Role</th>
+                    <th>Active</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportData.users.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center text-muted">No users found.</td></tr>
+                  ) : reportData.users.map((user) => (
+                    <tr key={user.id}>
+                      <td>{user.name}</td>
+                      <td>{user.email}</td>
+                      <td>{user.mobile || "-"}</td>
+                      <td>{user.city || "-"}</td>
+                      <td>{user.role}</td>
+                      <td>{user.active ? "Yes" : "No"}</td>
+                      <td>{user.createdAt?.slice(0, 10) || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {selectedType === "REGISTRATIONS" && reportData && (
+          <div className="card shadow-sm border-0 p-4">
+            <h4 className="mb-3">Volunteer Registrations</h4>
+            <div className="table-responsive">
+              <table className="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Volunteer</th>
+                    <th>Email</th>
+                    <th>Event</th>
+                    <th>City</th>
+                    <th>Event date</th>
+                    <th>Registration date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportData.registrations.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center text-muted">No registrations found.</td></tr>
+                  ) : reportData.registrations.map((registration) => (
+                    <tr key={registration.registrationId}>
+                      <td>{registration.volunteerName}</td>
+                      <td>{registration.volunteerEmail}</td>
+                      <td>{registration.eventTitle}</td>
+                      <td>{registration.city}</td>
+                      <td>{registration.eventDate}</td>
+                      <td>{registration.registrationDate?.slice(0, 10) || "-"}</td>
+                      <td>{registration.registrationStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {selectedType !== "USERS" && selectedType !== "REGISTRATIONS" && (
         <div className="card shadow-sm border-0 p-4">
 
           <h4 className="mb-3">
 
-            {selectedType}
-            {" "}
-            Events
+            {selectedType === "ALL_EVENTS" ? "All Events" : `${selectedType} Events`}
 
           </h4>
 
@@ -592,7 +789,9 @@ const AdminDashboard = () => {
 
               {
 
-                pendingEvents.map((event) => (
+                eventsToDisplay.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center text-muted">No events found.</td></tr>
+                ) : eventsToDisplay.map((event) => (
 
                   <tr key={event.id}>
 
@@ -698,6 +897,7 @@ const AdminDashboard = () => {
           </table>
 
         </div>
+        )}
 
       </div>
 

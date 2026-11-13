@@ -42,6 +42,9 @@ public class Event extends BaseEntity {
 
     private LocalDateTime approvedAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String rejectionReason;
+
     @Enumerated(EnumType.STRING)
     private EventStatus status;
 

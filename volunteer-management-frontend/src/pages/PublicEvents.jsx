@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import Navbar from "../components/Navbar";
+import { useAuth } from "../context/AuthContext";
+import { STATE_CITIES, STATES } from "../data/locations";
 
 import {
   searchEvents,
@@ -9,6 +12,11 @@ import {
 } from "../services/eventService";
 
 const PublicEvents = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [state, setState] =
+    useState("");
 
   const [city, setCity] =
     useState("");
@@ -21,6 +29,26 @@ const PublicEvents = () => {
 
   const handleRegister =
     async (eventId) => {
+      if (!user || !localStorage.getItem("token")) {
+        const result = await Swal.fire({
+          icon: "info",
+          title: "Create an account to join",
+          text: "Sign up before registering for a volunteer event, or sign in if you already have an account.",
+          showDenyButton: true,
+          showCancelButton: true,
+          confirmButtonText: "Create account",
+          denyButtonText: "Sign in",
+          cancelButtonText: "Not now"
+        });
+
+        if (result.isConfirmed) {
+          navigate("/register");
+        } else if (result.isDenied) {
+          navigate("/login");
+        }
+
+        return;
+      }
 
       try {
 
@@ -60,7 +88,7 @@ const PublicEvents = () => {
           icon: "warning",
           title: "City Required",
           text:
-            "Please enter a city."
+            "Please select a state and city."
         });
 
         return;
@@ -112,25 +140,59 @@ const PublicEvents = () => {
           Search volunteer opportunities by city.
         </p>
 
-        <div className="row mb-4">
+        <div className="row g-3 mb-4">
 
-          <div className="col-md-8">
+          <div className="col-md-4">
 
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Enter City"
+            <label className="form-label" htmlFor="search-state">
+              State
+            </label>
+
+            <select
+              id="search-state"
+              className="form-select"
+              value={state}
+              onChange={(e) => {
+                setState(e.target.value);
+                setCity("");
+              }}
+            >
+              <option value="">Select state</option>
+              {STATES.map((stateName) => (
+                <option key={stateName} value={stateName}>{stateName}</option>
+              ))}
+            </select>
+
+          </div>
+
+          <div className="col-md-4">
+
+            <label className="form-label" htmlFor="search-city">
+              City
+            </label>
+
+            <select
+              id="search-city"
+              className="form-select"
               value={city}
               onChange={(e) =>
                 setCity(
                   e.target.value
                 )
               }
-            />
+              disabled={!state}
+            >
+              <option value="">
+                {state ? "Select city" : "Select a state first"}
+              </option>
+              {(STATE_CITIES[state] || []).map((cityName) => (
+                <option key={cityName} value={cityName}>{cityName}</option>
+              ))}
+            </select>
 
           </div>
 
-          <div className="col-md-4">
+          <div className="col-md-4 d-flex align-items-end">
 
             <button
               onClick={
@@ -166,7 +228,7 @@ const PublicEvents = () => {
 
           <div className="alert alert-secondary">
 
-            Search a city to view events.
+            Select a state and city to view events.
 
           </div>
 
@@ -221,6 +283,11 @@ const PublicEvents = () => {
                   <p>
                     <strong>Date:</strong>{" "}
                     {event.eventDate}
+                  </p>
+
+                  <p>
+                    <strong>Time:</strong>{" "}
+                    {event.startTime?.slice(0, 5)} – {event.endTime?.slice(0, 5)}
                   </p>
 
                   <div

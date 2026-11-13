@@ -41,4 +41,6 @@ public class EventResponse {
 
     private String imageUrl;
 
+    private String rejectionReason;
+
 }

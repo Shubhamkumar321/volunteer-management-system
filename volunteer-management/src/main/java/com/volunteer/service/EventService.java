@@ -22,7 +22,8 @@ public interface EventService {
     );
 
     EventResponse rejectEvent(
-            Long eventId
+            Long eventId,
+            String rejectionReason
     );
 
     List<EventResponse> getPendingEvents();

@@ -9,6 +9,10 @@ export const getDashboardAnalytics =
 
 };
 
+export const getAdminReports = () => {
+  return api.get("/api/admin/reports");
+};
+
 export const getPendingEvents =
 () => {
 
@@ -28,10 +32,11 @@ export const approveEvent =
 };
 
 export const rejectEvent =
-(eventId) => {
+(eventId, request) => {
 
   return api.put(
-    `/api/admin/events/${eventId}/reject`
+    `/api/admin/events/${eventId}/reject`,
+    request
   );
 
 };

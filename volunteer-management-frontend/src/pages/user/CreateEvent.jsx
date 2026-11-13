@@ -4,6 +4,32 @@ import Swal from "sweetalert2";
 
 import Navbar from "../../components/Navbar";
 import { createEvent } from "../../services/eventService";
+import { STATE_CITIES, STATES } from "../../data/locations";
+
+const DURATION_OPTIONS = [30, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
+
+const formatDuration = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest} minutes`;
+  const hourLabel = `${hours} hour${hours > 1 ? "s" : ""}`;
+  return rest ? `${hourLabel} ${rest} minutes` : hourLabel;
+};
+
+const toDateInputValue = (date) => {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
+// Returns null when the event would run past midnight, which the backend does not support.
+const calculateEndTime = (startTime, durationMinutes) => {
+  if (!startTime || !durationMinutes) return "";
+  const [hours, minutes] = startTime.split(":").map(Number);
+  const endMinutes = hours * 60 + minutes + Number(durationMinutes);
+  if (endMinutes >= 24 * 60) return null;
+  const endHours = String(Math.floor(endMinutes / 60)).padStart(2, "0");
+  return `${endHours}:${String(endMinutes % 60).padStart(2, "0")}`;
+};
 
 const CreateEvent = () => {
 
@@ -12,20 +38,27 @@ const CreateEvent = () => {
   const [eventData, setEventData] = useState({
     title: "",
     description: "",
+    state: "",
     city: "",
     address: "",
     eventDate: "",
     startTime: "",
-    endTime: "",
+    durationMinutes: "",
     maxVolunteers: "",
     categoryId: ""
   });
 
+  const today = toDateInputValue(new Date());
+  const endTime = calculateEndTime(eventData.startTime, eventData.durationMinutes);
+
   const handleChange = (e) => {
+
+    const { name, value } = e.target;
 
     setEventData({
       ...eventData,
-      [e.target.name]: e.target.value
+      [name]: value,
+      ...(name === "state" ? { city: "" } : {})
     });
 
   };
@@ -34,10 +67,36 @@ const CreateEvent = () => {
 
     e.preventDefault();
 
+    if (endTime === null) {
+      Swal.fire({
+        icon: "warning",
+        title: "Duration Too Long",
+        text: "The event must end before midnight. Choose an earlier start time or a shorter duration."
+      });
+      return;
+    }
+
+    const startsAt = new Date(`${eventData.eventDate}T${eventData.startTime}`);
+
+    if (startsAt <= new Date()) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid Start Time",
+        text: "The event start time must be in the future."
+      });
+      return;
+    }
+
     try {
 
       await createEvent({
-        ...eventData,
+        title: eventData.title,
+        description: eventData.description,
+        city: eventData.city,
+        address: eventData.address,
+        eventDate: eventData.eventDate,
+        startTime: eventData.startTime,
+        endTime,
         maxVolunteers: Number(
           eventData.maxVolunteers
         ),
@@ -141,19 +200,51 @@ const CreateEvent = () => {
               />
             </div>
 
-            <div className="mb-3">
-              <label className="form-label">
-                City
-              </label>
+            <div className="row">
 
-              <input
-                type="text"
-                name="city"
-                className="form-control"
-                value={eventData.city}
-                onChange={handleChange}
-                required
-              />
+              <div className="col-md-6 mb-3">
+                <label className="form-label" htmlFor="event-state">
+                  State
+                </label>
+
+                <select
+                  id="event-state"
+                  name="state"
+                  className="form-select"
+                  value={eventData.state}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select state</option>
+                  {STATES.map((state) => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-md-6 mb-3">
+                <label className="form-label" htmlFor="event-city">
+                  City
+                </label>
+
+                <select
+                  id="event-city"
+                  name="city"
+                  className="form-select"
+                  value={eventData.city}
+                  onChange={handleChange}
+                  disabled={!eventData.state}
+                  required
+                >
+                  <option value="">
+                    {eventData.state ? "Select city" : "Select a state first"}
+                  </option>
+                  {(STATE_CITIES[eventData.state] || []).map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+
             </div>
 
             <div className="mb-3">
@@ -180,6 +271,7 @@ const CreateEvent = () => {
                 type="date"
                 name="eventDate"
                 className="form-control"
+                min={today}
                 value={eventData.eventDate}
                 onChange={handleChange}
                 required
@@ -207,22 +299,41 @@ const CreateEvent = () => {
 
               <div className="col-md-6 mb-3">
 
-                <label className="form-label">
-                  End Time
+                <label className="form-label" htmlFor="durationMinutes">
+                  Duration
                 </label>
 
-                <input
-                  type="time"
-                  name="endTime"
-                  className="form-control"
-                  value={eventData.endTime}
+                <select
+                  id="durationMinutes"
+                  name="durationMinutes"
+                  className="form-select"
+                  value={eventData.durationMinutes}
                   onChange={handleChange}
                   required
-                />
+                >
+                  <option value="">Select duration</option>
+                  {DURATION_OPTIONS.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {formatDuration(minutes)}
+                    </option>
+                  ))}
+                </select>
 
               </div>
 
             </div>
+
+            {endTime && (
+              <div className="alert alert-success py-2">
+                Ends at <strong>{endTime}</strong>. The event will be hidden from the public events page after this time.
+              </div>
+            )}
+
+            {endTime === null && (
+              <div className="alert alert-warning py-2">
+                This duration runs past midnight. Choose an earlier start time or a shorter duration.
+              </div>
+            )}
 
             <div className="mb-3">
 

@@ -9,22 +9,33 @@ import com.volunteer.entity.EventRegistration;
 import com.volunteer.entity.User;
 import com.volunteer.enums.EventStatus;
 import com.volunteer.enums.RegistrationStatus;
+import com.volunteer.enums.Role;
 import com.volunteer.exception.BadRequestException;
 import com.volunteer.repository.CategoryRepository;
 import com.volunteer.repository.EventRegistrationRepository;
 import com.volunteer.repository.EventRepository;
 import com.volunteer.repository.UserRepository;
+import com.volunteer.service.EmailService;
 import com.volunteer.service.EventService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class EventServiceImpl  implements EventService {
+
+        private static final DateTimeFormatter EMAIL_DATE_FORMAT =
+                        DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
 
     private final EventRepository eventRepository;
 
@@ -33,6 +44,8 @@ public class EventServiceImpl  implements EventService {
     private final CategoryRepository categoryRepository;
 
     private final EventRegistrationRepository registrationRepository;
+
+        private final EmailService emailService;
 
     @Override
     public EventResponse createEvent(
@@ -53,6 +66,17 @@ public class EventServiceImpl  implements EventService {
 
             throw new BadRequestException(
                     "End Time Must Be Greater Than Start Time"
+            );
+        }
+
+        if(!LocalDateTime.of(
+                        request.getEventDate(),
+                        request.getStartTime()
+                )
+                .isAfter(LocalDateTime.now())) {
+
+            throw new BadRequestException(
+                    "Start Time Must Be In The Future"
             );
         }
 
@@ -102,6 +126,8 @@ public class EventServiceImpl  implements EventService {
         Event saved =
                 eventRepository.save(event);
 
+        notifyAdminsOfEventCreation(saved);
+
         return EventResponse.builder()
                 .id(saved.getId())
                 .title(saved.getTitle())
@@ -145,6 +171,10 @@ public class EventServiceImpl  implements EventService {
                 )
                 .approvedAt(
                         event.getApprovedAt()
+                )
+
+                .rejectionReason(
+                        event.getRejectionReason()
                 )
 
                 .imageUrl(
@@ -201,10 +231,20 @@ public class EventServiceImpl  implements EventService {
                 EventStatus.APPROVED
         );
 
+        event.setRejectionReason(null);
+
         Event savedEvent =
                 eventRepository.save(
                         event
                 );
+
+        sendEmailSafely(
+                event.getCreatedBy().getEmail(),
+                "Your event has been approved: " + event.getTitle(),
+                "Your event has been approved.\n\n"
+                        + "Event: " + event.getTitle() + "\n"
+                        + "Event date: " + formatDate(event.getEventDate())
+        );
 
         return mapToResponse(
                 savedEvent
@@ -213,7 +253,8 @@ public class EventServiceImpl  implements EventService {
 
     @Override
     public EventResponse rejectEvent(
-            Long eventId
+            Long eventId,
+            String rejectionReason
     ) {
 
         Event event =
@@ -227,8 +268,19 @@ public class EventServiceImpl  implements EventService {
                 EventStatus.REJECTED
         );
 
+        event.setRejectionReason(rejectionReason.trim());
+
         Event updated =
                 eventRepository.save(event);
+
+        sendEmailSafely(
+                event.getCreatedBy().getEmail(),
+                "Your event was rejected: " + event.getTitle(),
+                "Your event was not approved.\n\n"
+                        + "Event: " + event.getTitle() + "\n"
+                        + "Event date: " + formatDate(event.getEventDate()) + "\n"
+                        + "Reason: " + event.getRejectionReason()
+        );
 
         return mapToResponse(updated);
     }
@@ -255,9 +307,11 @@ public class EventServiceImpl  implements EventService {
     ) {
 
         return eventRepository
-                .findByCityIgnoreCaseAndStatus(
-                        city,
-                        EventStatus.APPROVED
+                .findUpcomingByCityAndStatus(
+                        city.trim(),
+                        EventStatus.APPROVED,
+                        LocalDate.now(),
+                        LocalTime.now()
                 )
                 .stream()
                 .map(this::mapToResponse)
@@ -331,11 +385,14 @@ public class EventServiceImpl  implements EventService {
             );
         }
 
-        if(event.getStatus()
-                != EventStatus.APPROVED) {
+        if(!LocalDateTime.of(
+                        event.getEventDate(),
+                        event.getEndTime()
+                )
+                .isAfter(LocalDateTime.now())) {
 
             throw new BadRequestException(
-                    "Only approved events can be joined"
+                    "This event has already ended"
             );
         }
 
@@ -378,6 +435,8 @@ public class EventServiceImpl  implements EventService {
                 registrationRepository.save(
                         registration
                 );
+
+        notifyRegistrationParties(saved);
 
         return mapRegistration(saved);
     }
@@ -449,8 +508,10 @@ public class EventServiceImpl  implements EventService {
 
         return eventRepository
 
-                .findByStatus(
-                        EventStatus.APPROVED
+                .findUpcomingByStatus(
+                        EventStatus.APPROVED,
+                        LocalDate.now(),
+                        LocalTime.now()
                 )
 
                 .stream()
@@ -489,9 +550,70 @@ public class EventServiceImpl  implements EventService {
         );
     }
 
-    @Override
-    public List<EventResponse>
-    getApprovedEventsForAdmin() {
+        private void notifyAdminsOfEventCreation(Event event) {
+                String subject = "New event pending approval: " + event.getTitle();
+                String body = "A new event has been submitted for review.\n\n"
+                                + "Event: " + event.getTitle() + "\n"
+                                + "Organizer: " + event.getCreatedBy().getName() + "\n"
+                                + "Organizer email: " + event.getCreatedBy().getEmail() + "\n"
+                                + "Event date: " + formatDate(event.getEventDate()) + "\n"
+                                + "City: " + event.getCity();
+
+                userRepository.findAllByRole(Role.ADMIN)
+                                .forEach(admin -> sendEmailSafely(
+                                                admin.getEmail(),
+                                                subject,
+                                                body
+                                ));
+        }
+
+        private void notifyRegistrationParties(EventRegistration registration) {
+                Event event = registration.getEvent();
+                User volunteer = registration.getUser();
+                LocalDateTime registeredAt = registration.getCreatedAt() != null
+                                ? registration.getCreatedAt()
+                                : LocalDateTime.now();
+                String registrationDate = formatDate(registeredAt.toLocalDate());
+                String eventDate = formatDate(event.getEventDate());
+
+                sendEmailSafely(
+                                volunteer.getEmail(),
+                                "Registration confirmed: " + event.getTitle(),
+                                "Hello " + volunteer.getName() + ",\n\n"
+                                                + "You have successfully registered for this event.\n\n"
+                                                + "Event: " + event.getTitle() + "\n"
+                                                + "Registration date: " + registrationDate + "\n"
+                                                + "Event date: " + eventDate + "\n"
+                                                + "City: " + event.getCity()
+                );
+
+                sendEmailSafely(
+                                event.getCreatedBy().getEmail(),
+                                "New volunteer registration: " + event.getTitle(),
+                                "A volunteer has registered for your event.\n\n"
+                                                + "Volunteer: " + volunteer.getName() + "\n"
+                                                + "Volunteer email: " + volunteer.getEmail() + "\n"
+                                                + "Event: " + event.getTitle() + "\n"
+                                                + "Registration date: " + registrationDate + "\n"
+                                                + "Event date: " + eventDate
+                );
+        }
+
+        private String formatDate(LocalDate date) {
+                return date.format(EMAIL_DATE_FORMAT);
+        }
+
+        private void sendEmailSafely(String to, String subject, String body) {
+                try {
+                        emailService.sendEmail(to, subject, body);
+                } catch (MailException exception) {
+                        log.error("Unable to send event notification email", exception);
+                }
+        }
+
+        @Override
+        public List<EventResponse>
+        getApprovedEventsForAdmin() {
 
         return eventRepository
 

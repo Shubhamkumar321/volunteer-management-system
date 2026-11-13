@@ -31,3 +31,24 @@ export const loginUser = (
   );
 
 };
+
+export const verifyRegistrationOtp = (verificationData) => {
+  return api.post(
+    "/api/auth/verify-registration-otp",
+    verificationData
+  );
+};
+
+export const requestPasswordResetOtp = (email) => {
+  return api.post(
+    "/api/auth/forgot-password",
+    { email }
+  );
+};
+
+export const resetPassword = (resetData) => {
+  return api.post(
+    "/api/auth/reset-password",
+    resetData
+  );
+};
